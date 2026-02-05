@@ -15,8 +15,6 @@ import {
   ResponsiveContainer,
   ReferenceLine,
   type TooltipProps,
-  type ValueType,
-  type NameType,
 } from "recharts";
 import type { HistoryEntry, WaterStatus } from "@/lib/types";
 
@@ -41,7 +39,7 @@ function clampPercent(p: number) {
 function CustomTooltip({
   active,
   payload,
-}: TooltipProps<ValueType, NameType>) {
+}: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
 
   const data = payload[0]?.payload as ChartDatum | undefined;
@@ -51,8 +49,8 @@ function CustomTooltip({
     data.status === "SAFE"
       ? "text-safe"
       : data.status === "MODERATE"
-      ? "text-warning"
-      : "text-danger";
+        ? "text-warning"
+        : "text-danger";
 
   return (
     <div className="bg-popover border border-border rounded-lg p-3 shadow-xl">
@@ -69,17 +67,14 @@ function CustomTooltip({
 /* Component */
 /* ------------------------------------------------------- */
 export function ChartsPanel({ history }: ChartsPanelProps) {
-  /* use real time instead of index */
-  const chartData = history
-    .slice(-20)
-    .map((entry) => ({
-      time: entry.timestamp.toLocaleTimeString(),
-      probability: clampPercent(entry.probability),
-      status: entry.status,
-    }));
+  const safeHistory = history ?? [];
 
-  const lineColor = "hsl(var(--primary))";
-  const areaColor = "hsl(var(--accent))";
+  /* use real time instead of index */
+  const chartData = safeHistory.slice(-20).map((entry) => ({
+    time: entry.timestamp.toLocaleTimeString(),
+    probability: clampPercent(entry.probability),
+    status: entry.status,
+  }));
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -102,12 +97,13 @@ export function ChartsPanel({ history }: ChartsPanelProps) {
             {chartData.length ? (
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="4 4" strokeOpacity={0.15} />
 
                   <XAxis dataKey="time" tick={{ fontSize: 11 }} />
 
                   <YAxis
                     domain={[0, 100]}
+                    tickCount={6}
                     tick={{ fontSize: 11 }}
                   />
 
@@ -120,10 +116,12 @@ export function ChartsPanel({ history }: ChartsPanelProps) {
                   <Line
                     type="monotone"
                     dataKey="probability"
-                    stroke={lineColor}
-                    strokeWidth={3}
-                    dot={false}
-                    isAnimationActive
+                    stroke="#22c55e"
+                    strokeWidth={4}
+                    dot={{ r: 5 }}
+                    activeDot={{ r: 7 }}
+                    isAnimationActive={true}
+                    animationDuration={500}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -155,27 +153,22 @@ export function ChartsPanel({ history }: ChartsPanelProps) {
             {chartData.length ? (
               <ResponsiveContainer width="100%" height={280}>
                 <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={areaColor} stopOpacity={0.4} />
-                      <stop offset="95%" stopColor={areaColor} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="4 4" strokeOpacity={0.15} />
 
                   <XAxis dataKey="time" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+                  <YAxis domain={[0, 100]} tickCount={6} tick={{ fontSize: 11 }} />
 
                   <Tooltip content={<CustomTooltip />} />
 
                   <Area
                     type="monotone"
                     dataKey="probability"
-                    stroke={areaColor}
-                    fill="url(#areaFill)"
+                    stroke="#06b6d4"
                     strokeWidth={3}
-                    isAnimationActive
+                    fillOpacity={0.35}
+                    fill="#06b6d4"
+                    isAnimationActive={true}
+                    animationDuration={500}
                   />
                 </AreaChart>
               </ResponsiveContainer>
