@@ -14,7 +14,6 @@ import type { SensorData, PredictionResult, HistoryEntry } from "@/lib/types";
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-/* clamp percent so UI NEVER shows 0 or 100 */
 const toPercent = (p: number) =>
   Math.min(99.9, Math.max(0.1, p * 100));
 
@@ -22,106 +21,93 @@ export function Dashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentResult, setCurrentResult] =
     useState<PredictionResult | null>(null);
-
-  /* HISTORY NOW COMES FROM BACKEND ONLY */
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-
-  /* streaming state */
   const [isStreaming, setIsStreaming] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSensorData = useRef<SensorData | null>(null);
 
   const { toast } = useToast();
 
-  /* ======================================================
-     SINGLE PREDICTION
-  ====================================================== */
+  const callBackend = async (data: SensorData) => {
+    const res = await fetch(`${API_URL}/predict`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+
+    const result = await res.json();
+
+    if (result.probability === null) return;
+
+    setCurrentResult({
+      probability: result.probability,
+      status: result.status,
+    });
+
+    if (result.history) {
+      const mapped: HistoryEntry[] = result.history.map((h: any, i: number) => ({
+        id: `${Date.now()}-${i}`,
+        timestamp: new Date(),
+        sensorData: data,
+        probability: h.probability,
+        status: h.status,
+      }));
+
+      setHistory(mapped);
+    }
+  };
+
   const handleSubmit = useCallback(
     async (data: SensorData) => {
       setIsLoading(true);
+      lastSensorData.current = data;
 
       try {
-        const response = await fetch(`${API_URL}/predict`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        });
+        await callBackend(data);
 
-        if (!response.ok) throw new Error();
-
-        const result = await response.json();
-
-        /* backend returns history now */
-        const backendHistory = result.history ?? [];
-
-        setCurrentResult({
-          probability: result.probability,
-          status: result.status,
-        });
-
-        setHistory(
-          backendHistory.map((h: any, i: number) => ({
-            id: `${Date.now()}-${i}`,
-            timestamp: new Date(),
-            sensorData: data,
-            probability: h.probability,
-            status: h.status,
-          }))
-        );
-
-        const percent = toPercent(result.probability);
-
-        toast({
-          title: `Water Quality: ${result.status}`,
-          description: `${percent.toFixed(2)}%`,
-        });
-      } catch {
-        toast({
-          title: "Backend not reachable",
-          variant: "destructive",
-        });
+        if (currentResult) {
+          toast({
+            title: currentResult.status,
+            description: `${toPercent(currentResult.probability).toFixed(2)}%`,
+          });
+        }
       } finally {
         setIsLoading(false);
       }
     },
-    [toast]
+    [toast, currentResult]
   );
 
-  /* ======================================================
-     STREAMING MODE (auto every 2s)
-  ====================================================== */
-  const startStream = (data: SensorData) => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    intervalRef.current = setInterval(() => {
-      handleSubmit(data);
-    }, 2000);
+  const startStream = () => {
+    if (!lastSensorData.current) return;
 
     setIsStreaming(true);
+
+    timerRef.current = setInterval(() => {
+      callBackend(lastSensorData.current!);
+    }, 5000);
   };
 
   const stopStream = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
     setIsStreaming(false);
+    if (timerRef.current) clearInterval(timerRef.current);
   };
 
   useEffect(() => {
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
 
-  /* ======================================================
-     UI
-  ====================================================== */
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
       <main className="container mx-auto px-4 py-6 lg:px-6">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           className="space-y-6"
         >
           <StatsCards
@@ -129,36 +115,27 @@ export function Dashboard() {
             currentProbability={currentResult?.probability ?? null}
           />
 
-          <div className="grid gap-6 lg:grid-cols-12">
-            <div className="lg:col-span-3 space-y-3">
-              <SensorForm
-                onSubmit={(data) => {
-                  if (isStreaming) stopStream();
-                  handleSubmit(data);
-                }}
-                isLoading={isLoading}
-              />
+          <div className="flex gap-3">
+            <button
+              onClick={startStream}
+              className="px-4 py-2 bg-green-600 text-white rounded"
+              disabled={isStreaming}
+            >
+              Start Live
+            </button>
 
-              <button
-                className="w-full text-sm border rounded-md py-2"
-                onClick={() =>
-                  isStreaming
-                    ? stopStream()
-                    : startStream(history.at(-1)?.sensorData ?? {
-                        ph: 7,
-                        hardness: 150,
-                        solids: 20000,
-                        chloramines: 7,
-                        sulfate: 250,
-                        conductivity: 400,
-                        organic_carbon: 14,
-                        trihalomethanes: 60,
-                        turbidity: 4,
-                      })
-                }
-              >
-                {isStreaming ? "Stop Live Stream" : "Start Live Stream"}
-              </button>
+            <button
+              onClick={stopStream}
+              className="px-4 py-2 bg-red-600 text-white rounded"
+              disabled={!isStreaming}
+            >
+              Stop
+            </button>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-12">
+            <div className="lg:col-span-3">
+              <SensorForm onSubmit={handleSubmit} isLoading={isLoading} />
             </div>
 
             <div className="lg:col-span-6 space-y-6">
