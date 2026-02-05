@@ -1,0 +1,20 @@
+# Python envs
+waterenv/
+venv/
+__pycache__/
+*.pyc
+
+# ML artifacts
+*.keras
+*.h5
+*.pkl
+*.joblib
+*.csv
+
+# Frontend
+node_modules/
+.next/
+dist/
+
+# OS
+.DS_Store
