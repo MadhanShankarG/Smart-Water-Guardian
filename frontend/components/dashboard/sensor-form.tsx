@@ -21,18 +21,35 @@ interface SensorFormProps {
 }
 
 export function SensorForm({ onSubmit, isLoading }: SensorFormProps) {
-  const [formData, setFormData] = useState<SensorData>(DEFAULT_SENSOR_VALUES);
+  const [formData, setFormData] = useState<Record<keyof SensorData, string>>(
+    Object.fromEntries(
+      Object.entries(DEFAULT_SENSOR_VALUES).map(([k, v]) => [k, String(v)])
+    ) as Record<keyof SensorData, string>
+  );
 
   const handleChange = (key: keyof SensorData, value: string) => {
     setFormData((prev) => ({
       ...prev,
-      [key]: parseFloat(value) || 0,
+      [key]: value,
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit(formData);
+
+    const parsed: SensorData = {
+      ph: Number(formData.ph || 0),
+      hardness: Number(formData.hardness || 0),
+      solids: Number(formData.solids || 0),
+      chloramines: Number(formData.chloramines || 0),
+      sulfate: Number(formData.sulfate || 0),
+      conductivity: Number(formData.conductivity || 0),
+      organic_carbon: Number(formData.organic_carbon || 0),
+      trihalomethanes: Number(formData.trihalomethanes || 0),
+      turbidity: Number(formData.turbidity || 0),
+    };
+
+    await onSubmit(parsed);
   };
 
   return (
@@ -71,7 +88,7 @@ export function SensorForm({ onSubmit, isLoading }: SensorFormProps) {
                   min={sensor.min}
                   max={sensor.max}
                   step={sensor.step}
-                  value={formData[sensor.key as keyof SensorData]}
+                  value={formData[sensor.key as keyof SensorData] ?? ""}
                   onChange={(e) =>
                     handleChange(sensor.key as keyof SensorData, e.target.value)
                   }

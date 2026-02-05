@@ -10,27 +10,40 @@ interface StatsCardsProps {
   currentProbability: number | null;
 }
 
+/* single consistent percent formatter */
+const toPercent = (p: number | null) => {
+  if (p === null || isNaN(p)) return "-";
+  const percent = Math.min(99.9, Math.max(0.1, p * 100));
+  return `${percent.toFixed(2)}%`;
+};
+
 export function StatsCards({ history, currentProbability }: StatsCardsProps) {
-  const totalTests = history.length;
-  const unsafeCount = history.filter((h) => h.status === "UNSAFE").length;
+  /* use SAME last 20 as charts */
+  const recent = history.slice(-20);
+
+  const totalTests = recent.length;
+
+  const unsafeCount = recent.filter((h) => h.status === "UNSAFE").length;
+
   const last5Avg =
-    history.length > 0
-      ? history.slice(-5).reduce((acc, h) => acc + h.probability, 0) /
-        Math.min(history.length, 5)
-      : 0;
+    recent.length > 0
+      ? recent
+          .slice(-5)
+          .reduce((acc, h) => acc + h.probability, 0) /
+        Math.min(5, recent.length)
+      : null;
 
   const stats = [
     {
       label: "Current Probability",
-      value:
-        currentProbability !== null ? `${currentProbability.toFixed(1)}%` : "-",
+      value: toPercent(currentProbability),
       icon: Percent,
       color: "text-primary",
       bgColor: "bg-primary/10",
     },
     {
       label: "Last 5 Average",
-      value: history.length > 0 ? `${last5Avg.toFixed(1)}%` : "-",
+      value: toPercent(last5Avg),
       icon: TrendingUp,
       color: "text-accent",
       bgColor: "bg-accent/10",
@@ -55,14 +68,15 @@ export function StatsCards({ history, currentProbability }: StatsCardsProps) {
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {stats.map((stat, index) => {
         const Icon = stat.icon;
+
         return (
           <motion.div
             key={stat.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
+            transition={{ delay: index * 0.05 }}
           >
-            <Card className="border-border/50 shadow-lg hover:shadow-xl transition-shadow">
+            <Card className="border-border/50 shadow-lg">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   <div
@@ -70,18 +84,14 @@ export function StatsCards({ history, currentProbability }: StatsCardsProps) {
                   >
                     <Icon className={`h-5 w-5 ${stat.color}`} />
                   </div>
+
                   <div>
                     <p className="text-xs text-muted-foreground">
                       {stat.label}
                     </p>
-                    <motion.p
-                      key={stat.value}
-                      initial={{ scale: 0.8 }}
-                      animate={{ scale: 1 }}
-                      className="text-xl font-bold text-foreground"
-                    >
+                    <p className="text-xl font-bold text-foreground">
                       {stat.value}
-                    </motion.p>
+                    </p>
                   </div>
                 </div>
               </CardContent>
