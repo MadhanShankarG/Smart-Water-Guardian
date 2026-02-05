@@ -10,40 +10,43 @@ interface StatsCardsProps {
   currentProbability: number | null;
 }
 
-/* single consistent percent formatter */
-const toPercent = (p: number | null) => {
-  if (p === null || isNaN(p)) return "-";
-  const percent = Math.min(99.9, Math.max(0.1, p * 100));
-  return `${percent.toFixed(2)}%`;
-};
+function clampPercent(p: number) {
+  if (!Number.isFinite(p)) return null;
+  return Math.min(99.9, Math.max(0.1, p));
+}
+
+function fractionToClampedPercent(probabilityFraction: number | null) {
+  if (probabilityFraction === null || !Number.isFinite(probabilityFraction)) return null;
+  return clampPercent(probabilityFraction * 100);
+}
+
+function formatPercent(value: number | null) {
+  const p = value === null ? null : clampPercent(value);
+  return p === null ? "-" : `${p.toFixed(2)}%`;
+}
 
 export function StatsCards({ history, currentProbability }: StatsCardsProps) {
-  /* use SAME last 20 as charts */
-  const recent = history.slice(-20);
+  const totalTests = history.length;
 
-  const totalTests = recent.length;
+  const unsafeCount = history.filter((h) => h.status === "UNSAFE").length;
 
-  const unsafeCount = recent.filter((h) => h.status === "UNSAFE").length;
-
+  const last5 = history.slice(-5);
   const last5Avg =
-    recent.length > 0
-      ? recent
-          .slice(-5)
-          .reduce((acc, h) => acc + h.probability, 0) /
-        Math.min(5, recent.length)
+    last5.length > 0
+      ? last5.reduce((acc, h) => acc + h.probability, 0) / last5.length
       : null;
 
   const stats = [
     {
       label: "Current Probability",
-      value: toPercent(currentProbability),
+      value: formatPercent(fractionToClampedPercent(currentProbability)),
       icon: Percent,
       color: "text-primary",
       bgColor: "bg-primary/10",
     },
     {
       label: "Last 5 Average",
-      value: toPercent(last5Avg),
+      value: formatPercent(last5Avg),
       icon: TrendingUp,
       color: "text-accent",
       bgColor: "bg-accent/10",

@@ -1,8 +1,6 @@
 "use client";
 
-import React from "react"
-
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { FlaskConical, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,12 +10,29 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   SENSOR_CONFIG,
   DEFAULT_SENSOR_VALUES,
+  type SensorConfigItem,
   type SensorData,
+  type SensorKey,
 } from "@/lib/types";
 
 interface SensorFormProps {
   onSubmit: (data: SensorData) => Promise<void>;
   isLoading: boolean;
+}
+
+const SENSOR_CONFIG_BY_KEY = Object.fromEntries(
+  SENSOR_CONFIG.map((s) => [s.key, s])
+) as Record<SensorKey, SensorConfigItem>;
+
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n));
+}
+
+function parseAndClamp(key: SensorKey, value: string) {
+  const cfg = SENSOR_CONFIG_BY_KEY[key];
+  const n = Number(value);
+  const safe = Number.isFinite(n) ? n : 0;
+  return clamp(safe, cfg.min, cfg.max);
 }
 
 export function SensorForm({ onSubmit, isLoading }: SensorFormProps) {
@@ -38,15 +53,9 @@ export function SensorForm({ onSubmit, isLoading }: SensorFormProps) {
     e.preventDefault();
 
     const parsed: SensorData = {
-      ph: Number(formData.ph || 0),
-      hardness: Number(formData.hardness || 0),
-      solids: Number(formData.solids || 0),
-      chloramines: Number(formData.chloramines || 0),
-      sulfate: Number(formData.sulfate || 0),
-      conductivity: Number(formData.conductivity || 0),
-      organic_carbon: Number(formData.organic_carbon || 0),
-      trihalomethanes: Number(formData.trihalomethanes || 0),
-      turbidity: Number(formData.turbidity || 0),
+      water_pH: parseAndClamp("water_pH", formData.water_pH ?? ""),
+      TDS: parseAndClamp("TDS", formData.TDS ?? ""),
+      water_temp: parseAndClamp("water_temp", formData.water_temp ?? ""),
     };
 
     await onSubmit(parsed);
@@ -113,7 +122,7 @@ export function SensorForm({ onSubmit, isLoading }: SensorFormProps) {
             ) : (
               <>
                 <Send className="h-4 w-4" />
-                Analyze Water
+                Analyze
               </>
             )}
           </Button>

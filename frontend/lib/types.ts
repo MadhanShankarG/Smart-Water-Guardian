@@ -1,108 +1,80 @@
+export type WaterStatus = "SAFE" | "MODERATE" | "UNSAFE";
+
+/**
+ * Backend model input is shape (20, 3) so ONLY these 3 sensors exist.
+ * Contract (POST /predict):
+ * {
+ *   water_pH: number,
+ *   TDS: number,
+ *   water_temp: number
+ * }
+ */
 export interface SensorData {
-  ph: number;
-  hardness: number;
-  solids: number;
-  chloramines: number;
-  sulfate: number;
-  conductivity: number;
-  organic_carbon: number;
-  trihalomethanes: number;
-  turbidity: number;
+  water_pH: number;
+  TDS: number;
+  water_temp: number;
 }
 
 export interface PredictionResult {
-  probability: number; // 0 → 1 from backend
-  status: "SAFE" | "MODERATE" | "UNSAFE";
+  /**
+   * Probability as a fraction in range 0→1 (used by `StatusCard` gauge).
+   * Note: other UI surfaces (charts/alerts) use percent values derived from this.
+   */
+  probability: number;
+  status: WaterStatus;
 }
 
-export interface HistoryEntry extends PredictionResult {
+/**
+ * Backend stream response contract (GET /stream):
+ * {
+ *   results: [{ probability, status }],
+ *   history: [{ probability, status }]
+ * }
+ */
+export interface StreamResponse {
+  results: PredictionResult[];
+  history: PredictionResult[];
+}
+
+/**
+ * UI-enriched history entry (adds id + timestamp for charts/alerts).
+ *
+ * IMPORTANT: `probability` here is stored as a percent (0→100) so that
+ * existing UI elements can render `xx%` without re-scaling.
+ */
+export interface HistoryEntry {
   id: string;
   timestamp: Date;
-  sensorData: SensorData;
+  probability: number; // percent, 0→100 (display is clamped to 0.1→99.9)
+  status: WaterStatus;
 }
 
-export const SENSOR_CONFIG = [
-  { key: "ph", label: "pH Level", min: 0, max: 14, unit: "", step: 0.1 },
+export type SensorKey = keyof SensorData;
+
+export type SensorConfigItem = {
+  key: SensorKey;
+  label: string;
+  min: number;
+  max: number;
+  unit: string;
+  step: number;
+};
+
+export const SENSOR_CONFIG: readonly SensorConfigItem[] = [
+  { key: "water_pH", label: "pH", min: 0, max: 14, unit: "", step: 0.1 },
+  { key: "TDS", label: "TDS", min: 0, max: 50000, unit: "ppm", step: 1 },
   {
-    key: "hardness",
-    label: "Hardness",
-    min: 0,
-    max: 500,
-    unit: "mg/L",
-    step: 1,
-  },
-  {
-    key: "solids",
-    label: "TDS (Total Dissolved Solids)",
-    min: 0,
-    max: 50000,
-    unit: "ppm",
-    step: 1,
-  },
-  {
-    key: "chloramines",
-    label: "Chloramines",
-    min: 0,
-    max: 15,
-    unit: "ppm",
-    step: 0.1,
-  },
-  {
-    key: "sulfate",
-    label: "Sulfate",
-    min: 0,
-    max: 600,
-    unit: "mg/L",
-    step: 1,
-  },
-  {
-    key: "conductivity",
-    label: "Conductivity",
-    min: 0,
-    max: 1200,
-    unit: "μS/cm",
-    step: 1,
-  },
-  {
-    key: "organic_carbon",
-    label: "Organic Carbon",
-    min: 0,
-    max: 40,
-    unit: "ppm",
-    step: 0.1,
-  },
-  {
-    key: "trihalomethanes",
-    label: "Trihalomethanes",
-    min: 0,
-    max: 200,
-    unit: "μg/L",
-    step: 0.1,
-  },
-  {
-    key: "turbidity",
-    label: "Turbidity",
-    min: 0,
-    max: 15,
-    unit: "NTU",
+    key: "water_temp",
+    label: "Temperature",
+    min: -10,
+    max: 100,
+    unit: "°C",
     step: 0.1,
   },
 ] as const;
 
-
-/*
-  UPDATED DEFAULT VALUES
-  (your unsafe sample)
-  [5.3,355,33000,12,530,970,28,160,9]
-*/
 export const DEFAULT_SENSOR_VALUES: SensorData = {
-  ph: 5.3,
-  hardness: 355,
-  solids: 33000,
-  chloramines: 12,
-  sulfate: 530,
-  conductivity: 970,
-  organic_carbon: 28,
-  trihalomethanes: 160,
-  turbidity: 9,
+  water_pH: 7.0,
+  TDS: 300,
+  water_temp: 25.0,
 };

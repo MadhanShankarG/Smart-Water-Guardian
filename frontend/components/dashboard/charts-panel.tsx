@@ -14,24 +14,38 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
+  type TooltipProps,
+  type ValueType,
+  type NameType,
 } from "recharts";
-import type { HistoryEntry } from "@/lib/types";
+import type { HistoryEntry, WaterStatus } from "@/lib/types";
 
 interface ChartsPanelProps {
   history: HistoryEntry[];
 }
 
-/* clamp once only */
-const toPercent = (p: number) =>
-  Math.min(99.9, Math.max(0.1, p * 100));
+type ChartDatum = {
+  time: string;
+  probability: number; // percent
+  status: WaterStatus;
+};
+
+function clampPercent(p: number) {
+  if (!Number.isFinite(p)) return 0.1;
+  return Math.min(99.9, Math.max(0.1, p));
+}
 
 /* ------------------------------------------------------- */
 /* Tooltip */
 /* ------------------------------------------------------- */
-function CustomTooltip({ active, payload }: any) {
+function CustomTooltip({
+  active,
+  payload,
+}: TooltipProps<ValueType, NameType>) {
   if (!active || !payload?.length) return null;
 
-  const data = payload[0].payload;
+  const data = payload[0]?.payload as ChartDatum | undefined;
+  if (!data) return null;
 
   const color =
     data.status === "SAFE"
@@ -44,7 +58,7 @@ function CustomTooltip({ active, payload }: any) {
     <div className="bg-popover border border-border rounded-lg p-3 shadow-xl">
       <p className="text-xs text-muted-foreground">{data.time}</p>
       <p className={`text-lg font-bold ${color}`}>
-        {data.probability.toFixed(2)}%
+        {clampPercent(data.probability).toFixed(2)}%
       </p>
       <p className={`text-xs ${color}`}>{data.status}</p>
     </div>
@@ -60,7 +74,7 @@ export function ChartsPanel({ history }: ChartsPanelProps) {
     .slice(-20)
     .map((entry) => ({
       time: entry.timestamp.toLocaleTimeString(),
-      probability: toPercent(entry.probability),
+      probability: clampPercent(entry.probability),
       status: entry.status,
     }));
 
