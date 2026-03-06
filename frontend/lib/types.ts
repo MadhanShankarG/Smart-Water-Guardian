@@ -16,36 +16,27 @@ export interface SensorData {
 }
 
 export interface PredictionResult {
-  /**
-   * Probability as a fraction in range 0→1 (used by `StatusCard` gauge).
-   * Note: other UI surfaces (charts/alerts) use percent values derived from this.
-   */
-  probability: number;
+  probability: number | null; // fraction: 0 to 1
+  status: WaterStatus | "COLLECTING";
+}
+
+export interface HistoryPrediction {
+  probability: number; // fraction: 0 to 1
   status: WaterStatus;
+  timestamp?: string;
 }
 
-/**
- * Backend stream response contract (GET /stream):
- * {
- *   results: [{ probability, status }],
- *   history: [{ probability, status }]
- * }
- */
-export interface StreamResponse {
-  results: PredictionResult[];
-  history: PredictionResult[];
+export interface LatestResponse {
+  probability: number | null;
+  status: WaterStatus | "COLLECTING";
+  history: HistoryPrediction[];
+  count?: number;
 }
 
-/**
- * UI-enriched history entry (adds id + timestamp for charts/alerts).
- *
- * IMPORTANT: `probability` here is stored as a percent (0→100) so that
- * existing UI elements can render `xx%` without re-scaling.
- */
 export interface HistoryEntry {
   id: string;
   timestamp: Date;
-  probability: number; // percent, 0→100 (display is clamped to 0.1→99.9)
+  probability: number; // percent, 0 to 100
   status: WaterStatus;
 }
 

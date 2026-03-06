@@ -26,7 +26,7 @@ function formatPercent(value: number | null) {
 }
 
 export function StatsCards({ history, currentProbability }: StatsCardsProps) {
-  const totalTests = history.length;
+  const totalPredictions = history.length;
 
   const unsafeCount = history.filter((h) => h.status === "UNSAFE").length;
 
@@ -52,8 +52,8 @@ export function StatsCards({ history, currentProbability }: StatsCardsProps) {
       bgColor: "bg-accent/10",
     },
     {
-      label: "Total Tests",
-      value: totalTests.toString(),
+      label: "Total Predictions",
+      value: totalPredictions.toString(),
       icon: TestTube2,
       color: "text-chart-3",
       bgColor: "bg-chart-3/10",

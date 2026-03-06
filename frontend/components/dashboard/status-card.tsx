@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield, AlertTriangle, AlertCircle, Activity } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { PredictionResult } from "@/lib/types";
+import type { PredictionResult, WaterStatus } from "@/lib/types";
 
 interface StatusCardProps {
   result: PredictionResult | null;
@@ -45,7 +45,7 @@ function CircularGauge({
   status,
 }: {
   probability: number;
-  status: "SAFE" | "MODERATE" | "UNSAFE";
+  status: WaterStatus;
 }) {
   const config = statusConfig[status];
 
@@ -101,7 +101,7 @@ function CircularGauge({
 }
 
 export function StatusCard({ result }: StatusCardProps) {
-  if (!result || result.probability == null) {
+  if (!result || result.probability == null || result.status === "COLLECTING") {
     return (
       <Card className="h-full border-border/50 shadow-lg">
         <CardHeader>
@@ -117,8 +117,7 @@ export function StatusCard({ result }: StatusCardProps) {
     );
   }
 
-  const config =
-    statusConfig[result.status] ?? statusConfig.MODERATE;
+  const config = statusConfig[result.status] ?? statusConfig.MODERATE;
 
   const Icon = config.icon;
 
