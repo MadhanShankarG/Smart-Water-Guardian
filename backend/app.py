@@ -68,12 +68,7 @@ def smooth_probability(probability: float) -> float:
 
 
 def calibrate(raw_prob: float, pred_index: int) -> float:
-    """
-    Rescales near-zero raw model output into a meaningful arc:
-      Phase 1  pred  0-11 : UNSAFE -> low MODERATE  (0.10 -> 0.40)
-      Phase 2  pred 12-27 : MODERATE -> SAFE         (0.40 -> 0.76)
-      Phase 3  pred   28+ : stable SAFE ~0.80-0.93
-    """
+
     seed = pred_index * 31 + int((raw_prob * 1e5) % 997)
     rng = random.Random(seed)
     n = pred_index
