@@ -12,7 +12,7 @@ interface AlertsPanelProps {
 
 export function AlertsPanel({ history }: AlertsPanelProps) {
   const recentAlerts = history
-    .filter((h) => h.status === "UNSAFE" || h.status === "MODERATE")
+    .filter((h) => h.status === "UNSAFE")
     .slice(-10)
     .reverse();
 
@@ -26,21 +26,13 @@ export function AlertsPanel({ history }: AlertsPanelProps) {
           borderColor: "border-danger/30",
           label: "Unsafe Water Detected",
         };
-      case "MODERATE":
+      default:
         return {
           icon: AlertTriangle,
           color: "text-warning",
           bgColor: "bg-warning/10",
           borderColor: "border-warning/30",
-          label: "Moderate Risk Detected",
-        };
-      default:
-        return {
-          icon: CheckCircle2,
-          color: "text-safe",
-          bgColor: "bg-safe/10",
-          borderColor: "border-safe/30",
-          label: "Safe Water",
+          label: "Water Quality Alert",
         };
     }
   };
@@ -86,8 +78,8 @@ export function AlertsPanel({ history }: AlertsPanelProps) {
                           {config.label}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Probability: {alert.probability.toFixed(1)}% •{" "}
-                          {alert.timestamp.toLocaleTimeString()}
+                          {alert.timestamp.toLocaleString()} • Probability:{" "}
+                          {alert.probability.toFixed(1)}% • Status: {alert.status}
                         </p>
                       </div>
                     </motion.div>
@@ -105,7 +97,7 @@ export function AlertsPanel({ history }: AlertsPanelProps) {
                   No alerts at this time
                 </p>
                 <p className="text-xs text-muted-foreground/70">
-                  All readings are within safe parameters
+                  No unsafe predictions in recent history
                 </p>
               </motion.div>
             )}

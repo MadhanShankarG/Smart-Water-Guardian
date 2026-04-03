@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Radio, Square, WifiOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Header } from "./header";
 import { SensorForm } from "./sensor-form";
@@ -10,12 +9,12 @@ import { StatusCard } from "./status-card";
 import { StatsCards } from "./stats-cards";
 import { ChartsPanel } from "./charts-panel";
 import { AlertsPanel } from "./alerts-panel";
-import { Button } from "@/components/ui/button";
 import type {
+  HistoryPrediction,
   HistoryEntry,
+  LatestResponse,
   PredictionResult,
   SensorData,
-  StreamResponse,
   WaterStatus,
 } from "@/lib/types";
 
@@ -40,15 +39,9 @@ function normalizeProbabilityToFraction(raw: unknown): number | null {
   return clamp(fraction, 0, 1);
 }
 
-function toClampedPercentFromFraction(probabilityFraction: number) {
+function toPercent(probabilityFraction: number) {
   const percent = probabilityFraction * 100;
-  return Math.min(99.9, Math.max(0.1, percent));
-}
-
-function toClampedPercentFromRaw(raw: unknown): number | null {
-  const fraction = normalizeProbabilityToFraction(raw);
-  if (fraction === null) return null;
-  return toClampedPercentFromFraction(fraction);
+  return clamp(percent, 0, 100);
 }
 
 export function Dashboard() {
@@ -56,63 +49,47 @@ export function Dashboard() {
   const [currentResult, setCurrentResult] =
     useState<PredictionResult | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
-
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { toast } = useToast();
 
-  const fetchStreamOnce = useCallback(async () => {
-    const res = await fetch(`${API_URL}/stream`, { method: "GET" });
-    if (!res.ok) {
-      throw new Error(`Stream request failed (${res.status})`);
-    }
-
-    const json: unknown = await res.json();
-    const data = json as Partial<StreamResponse> | null;
-
-    const results = Array.isArray(data?.results) ? data!.results : [];
-    const backendHistory = Array.isArray(data?.history) ? data!.history : [];
-
-    // Current result = latest of results (fallback: last history point).
-    const latest =
-      (results.length ? results[results.length - 1] : null) ??
-      (backendHistory.length ? backendHistory[backendHistory.length - 1] : null);
-
-    if (latest) {
-      const fraction = normalizeProbabilityToFraction(
-        (latest as { probability?: unknown }).probability
-      );
-      if (fraction !== null) {
-        setCurrentResult({
-          probability: fraction,
-          status: coerceStatus((latest as { status?: unknown }).status),
-        });
-      }
-    }
-
-    // Map backend history → UI history with id + timestamps.
+  const mapHistory = useCallback((items: HistoryPrediction[]) => {
     const now = Date.now();
-    const n = backendHistory.length;
-    const mapped: HistoryEntry[] = backendHistory
-      .map((h, idx) => {
-        const percent = toClampedPercentFromRaw(
-          (h as { probability?: unknown }).probability
-        );
-        if (percent === null) return null;
-        const status = coerceStatus((h as { status?: unknown }).status);
-        const timestamp = new Date(now - (n - 1 - idx) * STREAM_INTERVAL_MS);
+    return items
+      .map((entry, idx) => {
+        const fraction = normalizeProbabilityToFraction(entry.probability);
+        if (fraction === null) return null;
+        const status = coerceStatus(entry.status);
+        const timestamp = entry.timestamp
+          ? new Date(entry.timestamp)
+          : new Date(now - (items.length - 1 - idx) * STREAM_INTERVAL_MS);
         return {
-          id: `${now}-${idx}`,
+          id: `${timestamp.getTime()}-${idx}`,
           timestamp,
-          probability: percent,
+          probability: toPercent(fraction),
           status,
         };
       })
-      .filter((v): v is HistoryEntry => v !== null);
-
-    setHistory(mapped);
+      .filter((entry): entry is HistoryEntry => entry !== null);
   }, []);
+
+  const fetchLatest = useCallback(async () => {
+    const res = await fetch(`${API_URL}/latest`, { method: "GET" });
+    if (!res.ok) {
+      throw new Error(`Latest request failed (${res.status})`);
+    }
+
+    const json = (await res.json()) as LatestResponse;
+    const normalizedStatus =
+      json.status === "COLLECTING" ? "COLLECTING" : coerceStatus(json.status);
+    const probability = normalizeProbabilityToFraction(json.probability);
+    const nextHistory = Array.isArray(json.history) ? mapHistory(json.history) : [];
+
+    setCurrentResult({
+      probability,
+      status: normalizedStatus,
+    });
+    setHistory(nextHistory.slice(-20));
+  }, [mapHistory]);
 
   const predictOnce = useCallback(async (data: SensorData) => {
     const res = await fetch(`${API_URL}/predict`, {
@@ -129,18 +106,16 @@ export function Dashboard() {
       throw new Error(`Prediction request failed (${res.status})`);
     }
 
-    const json: unknown = await res.json();
-    const obj = json as { probability?: unknown; status?: unknown };
+    const json = (await res.json()) as LatestResponse;
+    const probability = normalizeProbabilityToFraction(json.probability);
+    const status = json.status === "COLLECTING" ? "COLLECTING" : coerceStatus(json.status);
 
-    const fraction = normalizeProbabilityToFraction(obj.probability);
-    if (fraction === null) {
-      throw new Error("Invalid prediction response");
+    setCurrentResult({ probability, status });
+    if (Array.isArray(json.history) && json.history.length > 0) {
+      setHistory(mapHistory(json.history).slice(-20));
     }
-
-    const status = coerceStatus(obj.status);
-    setCurrentResult({ probability: fraction, status });
-    return { probabilityFraction: fraction, status };
-  }, []);
+    return { probability, status };
+  }, [mapHistory]);
 
   const handleSubmit = useCallback(
     async (data: SensorData) => {
@@ -148,49 +123,48 @@ export function Dashboard() {
 
       try {
         const result = await predictOnce(data);
-        toast({
-          title: result.status,
-          description: `${toClampedPercentFromFraction(result.probabilityFraction).toFixed(2)}%`,
-        });
+        if (result.probability === null || result.status === "COLLECTING") {
+          toast({
+            title: "COLLECTING",
+            description: "Collecting at least 20 readings before prediction.",
+          });
+        } else {
+          toast({
+            title: result.status,
+            description: `${toPercent(result.probability).toFixed(2)}%`,
+          });
+        }
+        await fetchLatest();
       } finally {
         setIsLoading(false);
       }
     },
-    [predictOnce, toast]
+    [fetchLatest, predictOnce, toast]
   );
 
-  const startStream = useCallback(() => {
-    if (intervalRef.current) return; // prevent duplicate intervals
-    setIsStreaming(true);
-
-    // Update immediately, then every 5 seconds.
-    void fetchStreamOnce().catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : "Failed to fetch stream";
-      toast({ title: "Live stream error", description: message });
-    });
-
-    intervalRef.current = setInterval(() => {
-      void fetchStreamOnce().catch((err: unknown) => {
-        const message =
-          err instanceof Error ? err.message : "Failed to fetch stream";
-        toast({ title: "Live stream error", description: message });
-      });
-    }, STREAM_INTERVAL_MS);
-  }, [fetchStreamOnce, toast]);
-
-  const stopStream = useCallback(() => {
-    setIsStreaming(false);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
-
   useEffect(() => {
-    return () => {
-      stopStream();
+    let isMounted = true;
+    const fetchSafe = async () => {
+      try {
+        await fetchLatest();
+      } catch (err: unknown) {
+        if (!isMounted) return;
+        const message =
+          err instanceof Error ? err.message : "Failed to fetch latest";
+        toast({ title: "Live stream error", description: message });
+      }
     };
-  }, [stopStream]);
+
+    void fetchSafe();
+    const id = setInterval(() => {
+      void fetchSafe();
+    }, STREAM_INTERVAL_MS);
+
+    return () => {
+      isMounted = false;
+      clearInterval(id);
+    };
+  }, [fetchLatest, toast]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -207,47 +181,14 @@ export function Dashboard() {
             currentProbability={currentResult?.probability ?? null}
           />
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              onClick={startStream}
-              disabled={isStreaming}
-              className="gap-2"
-            >
-              <Radio className="h-4 w-4" />
-              Start Live
-            </Button>
-
-            <Button
-              onClick={stopStream}
-              disabled={!isStreaming}
-              variant="destructive"
-              className="gap-2"
-            >
-              <Square className="h-4 w-4" />
-              Stop Live
-            </Button>
-
-            <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-              {isStreaming ? (
-                <>
-                  <span className="inline-flex h-2 w-2 rounded-full bg-safe" />
-                  Live updates every 5s
-                </>
-              ) : (
-                <>
-                  <WifiOff className="h-4 w-4" />
-                  Live mode is off
-                </>
-              )}
-            </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="inline-flex h-2 w-2 rounded-full bg-safe" />
+            Live updates every 5s from /latest
           </div>
 
           <div className="grid gap-6 lg:grid-cols-12">
             <div className="lg:col-span-3">
-              <SensorForm
-                onSubmit={handleSubmit}
-                isLoading={isLoading || isStreaming}
-              />
+              <SensorForm onSubmit={handleSubmit} isLoading={isLoading} />
             </div>
 
             <div className="lg:col-span-6 space-y-6">

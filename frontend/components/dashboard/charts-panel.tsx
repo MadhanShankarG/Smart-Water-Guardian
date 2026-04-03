@@ -104,14 +104,15 @@ export function ChartsPanel({ history }: ChartsPanelProps) {
                   <YAxis
                     domain={[0, 100]}
                     tickCount={6}
+                    tickFormatter={(value) => `${value}%`}
                     tick={{ fontSize: 11 }}
                   />
 
                   <Tooltip content={<CustomTooltip />} />
 
                   {/* SAFE / UNSAFE lines */}
-                  <ReferenceLine y={70} stroke="green" strokeDasharray="5 5" />
-                  <ReferenceLine y={30} stroke="red" strokeDasharray="5 5" />
+                  <ReferenceLine y={70} stroke="green" strokeDasharray="5 5" label="Safe 70%" />
+                  <ReferenceLine y={30} stroke="red" strokeDasharray="5 5" label="Unsafe 30%" />
 
                   <Line
                     type="monotone"
@@ -145,7 +146,7 @@ export function ChartsPanel({ history }: ChartsPanelProps) {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base font-medium">
               <BarChart3 className="h-4 w-4 text-accent" />
-              Last 20 Readings
+              Last 20 Predictions
             </CardTitle>
           </CardHeader>
 
@@ -156,9 +157,16 @@ export function ChartsPanel({ history }: ChartsPanelProps) {
                   <CartesianGrid strokeDasharray="4 4" strokeOpacity={0.15} />
 
                   <XAxis dataKey="time" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tickCount={6} tick={{ fontSize: 11 }} />
+                  <YAxis
+                    domain={[0, 100]}
+                    tickCount={6}
+                    tickFormatter={(value) => `${value}%`}
+                    tick={{ fontSize: 11 }}
+                  />
 
                   <Tooltip content={<CustomTooltip />} />
+                  <ReferenceLine y={70} stroke="green" strokeDasharray="5 5" label="Safe 70%" />
+                  <ReferenceLine y={30} stroke="red" strokeDasharray="5 5" label="Unsafe 30%" />
 
                   <Area
                     type="monotone"
